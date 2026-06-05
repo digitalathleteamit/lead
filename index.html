@@ -381,7 +381,7 @@ async function startExtraction() {
     }
  
     const data = await res.json();
-    extractedData = data.results;
+   extractedData = data?.results || [];
  
     setProgress(100);
     log(`✓ Extracted ${extractedData.length} leads successfully!`, 'ok');
