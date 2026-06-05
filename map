@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MapLeads — Google Maps Lead Extractor</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+ 
+:root{
+  --green:#00c896;
+  --green-dim:rgba(0,200,150,0.12);
+  --green-border:rgba(0,200,150,0.3);
+  --bg:#08090a;
+  --surface:#111214;
+  --surface2:#18191c;
+  --border:rgba(255,255,255,0.07);
+  --border2:rgba(255,255,255,0.12);
+  --text:#eaeaea;
+  --muted:#666;
+  --muted2:#444;
+  --font:'Outfit',sans-serif;
+  --mono:'JetBrains Mono',monospace;
+}
+ 
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden}
+ 
+/* Grid bg */
+body::before{
+  content:'';position:fixed;inset:0;
+  background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);
+  background-size:48px 48px;
+  mask-image:radial-gradient(ellipse 80% 60% at 50% 0%,black 40%,transparent 100%);
+  pointer-events:none;z-index:0;
+}
+ 
+header{
+  position:relative;z-index:10;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:1.25rem 2.5rem;
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(12px);
+  background:rgba(8,9,10,0.8);
+}
+ 
+.logo{font-size:1.2rem;font-weight:800;letter-spacing:-0.5px}
+.logo span{color:var(--green)}
+ 
+.badge-header{
+  background:var(--green-dim);border:1px solid var(--green-border);
+  color:var(--green);font-size:0.72rem;font-weight:600;
+  letter-spacing:1px;text-transform:uppercase;
+  padding:0.3rem 0.8rem;border-radius:999px;
+}
+ 
+/* Hero */
+.hero{
+  position:relative;z-index:10;
+  text-align:center;padding:4rem 2rem 2rem;
+}
+ 
+.hero-tag{
+  display:inline-flex;align-items:center;gap:0.5rem;
+  background:var(--surface);border:1px solid var(--border2);
+  color:var(--muted);font-size:0.78rem;
+  padding:0.4rem 1rem;border-radius:999px;margin-bottom:1.5rem;
+}
+.dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.5;transform:scale(0.8)}}
+ 
+h1{
+  font-size:clamp(2.2rem,5vw,4rem);font-weight:800;
+  line-height:1.08;letter-spacing:-2px;
+  max-width:640px;margin:0 auto 1rem;
+}
+h1 em{color:var(--green);font-style:normal}
+ 
+.sub{color:var(--muted);font-size:1rem;max-width:440px;margin:0 auto 2.5rem;line-height:1.7;font-weight:300}
+ 
+/* Main Card */
+.main-card{
+  position:relative;z-index:10;
+  background:var(--surface);
+  border:1px solid var(--border2);
+  border-radius:20px;
+  padding:1.75rem;
+  max-width:780px;
+  margin:0 auto;
+  box-shadow:0 0 100px rgba(0,200,150,0.04);
+}
+ 
+.form-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:0.75rem;align-items:end;margin-bottom:1rem}
+ 
+.field label{
+  display:block;font-size:0.75rem;font-weight:600;
+  color:var(--muted);text-transform:uppercase;letter-spacing:1px;
+  margin-bottom:0.4rem;
+}
+ 
+.field input,.field select{
+  width:100%;background:var(--surface2);
+  border:1px solid var(--border2);border-radius:10px;
+  padding:0.8rem 1rem;color:var(--text);
+  font-family:var(--font);font-size:0.9rem;outline:none;
+  transition:border-color 0.2s;
+}
+.field input::placeholder{color:var(--muted)}
+.field input:focus,.field select:focus{border-color:var(--green-border)}
+.field select option{background:#1a1a1a}
+ 
+.btn-extract{
+  background:var(--green);color:#000;
+  border:none;border-radius:10px;
+  padding:0.8rem 1.6rem;
+  font-family:var(--font);font-size:0.9rem;font-weight:700;
+  cursor:pointer;white-space:nowrap;
+  transition:all 0.2s;display:flex;align-items:center;gap:0.5rem;
+  align-self:end;
+}
+.btn-extract:hover{background:#00dea8;transform:translateY(-1px)}
+.btn-extract:active{transform:scale(0.98)}
+.btn-extract:disabled{opacity:0.4;cursor:not-allowed;transform:none}
+ 
+/* Progress */
+#progress-area{display:none;margin-top:1.25rem;animation:fadeUp 0.3s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+ 
+.progress-bar-wrap{
+  background:var(--surface2);border-radius:999px;
+  height:6px;overflow:hidden;margin-bottom:0.75rem;
+}
+.progress-bar{
+  height:100%;width:0%;
+  background:linear-gradient(90deg,var(--green),#00ffb3);
+  border-radius:999px;
+  transition:width 0.4s ease;
+}
+ 
+.progress-log{
+  font-family:var(--mono);font-size:0.78rem;color:var(--muted);
+  background:var(--surface2);border-radius:10px;
+  padding:0.75rem 1rem;max-height:100px;overflow-y:auto;
+  border:1px solid var(--border);
+}
+.log-line{margin-bottom:0.2rem}
+.log-line.ok{color:var(--green)}
+.log-line.info{color:#6b9eff}
+ 
+/* Results Table */
+#results-area{display:none;margin-top:1.5rem;animation:fadeUp 0.3s ease}
+ 
+.results-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:0.75rem;
+}
+.results-header h3{font-size:0.9rem;font-weight:600;color:var(--text)}
+.count-badge{
+  background:var(--green-dim);border:1px solid var(--green-border);
+  color:var(--green);font-size:0.75rem;font-weight:600;
+  padding:0.25rem 0.7rem;border-radius:999px;
+}
+ 
+.btn-download{
+  background:transparent;border:1px solid var(--green-border);
+  color:var(--green);border-radius:8px;
+  padding:0.5rem 1.1rem;font-family:var(--font);
+  font-size:0.82rem;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;gap:0.4rem;
+  transition:all 0.2s;text-decoration:none;
+}
+.btn-download:hover{background:var(--green-dim)}
+ 
+.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:0.82rem}
+thead tr{background:var(--surface2)}
+th{
+  padding:0.65rem 1rem;text-align:left;
+  font-size:0.7rem;font-weight:600;text-transform:uppercase;
+  letter-spacing:0.8px;color:var(--muted);
+  border-bottom:1px solid var(--border);
+  white-space:nowrap;
+}
+td{
+  padding:0.65rem 1rem;
+  border-bottom:1px solid var(--border);
+  color:var(--text);vertical-align:middle;
+}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,0.02)}
+.rating-star{color:#f5a623}
+.tag{
+  display:inline-block;background:var(--surface2);
+  border:1px solid var(--border2);
+  font-size:0.7rem;padding:0.15rem 0.5rem;border-radius:4px;color:var(--muted)
+}
+.phone-link{color:#6b9eff;text-decoration:none}
+.phone-link:hover{text-decoration:underline}
+ 
+/* Error */
+.error-box{
+  background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.25);
+  border-radius:10px;padding:0.85rem 1rem;
+  color:#ff8a8a;font-size:0.85rem;margin-top:1rem;display:none;
+}
+ 
+/* Stats row */
+.stats-row{
+  position:relative;z-index:10;
+  display:flex;justify-content:center;gap:2rem;
+  max-width:780px;margin:2rem auto 0;
+  padding:0 2rem;
+}
+.stat{text-align:center}
+.stat-num{font-size:1.6rem;font-weight:800;color:var(--green)}
+.stat-lbl{font-size:0.75rem;color:var(--muted);margin-top:0.2rem;text-transform:uppercase;letter-spacing:0.8px}
+ 
+footer{
+  position:relative;z-index:10;
+  text-align:center;padding:2rem;margin-top:3rem;
+  border-top:1px solid var(--border);
+  color:var(--muted2);font-size:0.78rem;
+}
+ 
+@media(max-width:640px){
+  header{padding:1rem 1.25rem}
+  .hero{padding:2.5rem 1.25rem 1.5rem}
+  .main-card{padding:1.25rem;border-radius:16px}
+  .form-grid{grid-template-columns:1fr}
+  .stats-row{gap:1rem}
+}
+</style>
+</head>
+<body>
+ 
+<header>
+  <div class="logo">Map<span>Leads</span></div>
+  <div class="badge-header">Google Maps Extractor</div>
+</header>
+ 
+<section class="hero">
+  <div class="hero-tag">
+    <span class="dot"></span>
+    Live Scraper — Real Data
+  </div>
+  <h1>Extract <em>Business Leads</em><br>from Google Maps</h1>
+  <p class="sub">Enter any keyword + location, get business name, phone, address, rating, website — download as Excel instantly.</p>
+</section>
+ 
+<div class="main-card" style="position:relative;z-index:10;max-width:780px;margin:0 auto;padding:1.75rem">
+  
+  <div class="form-grid">
+    <div class="field">
+      <label>Keyword / Business Type</label>
+      <input type="text" id="keyword" placeholder="e.g. restaurants, dentist, gym..." />
+    </div>
+    <div class="field">
+      <label>City / Location</label>
+      <input type="text" id="location" placeholder="e.g. Jaipur, Mumbai, Delhi..." />
+    </div>
+    <div class="field" style="min-width:120px">
+      <label>Max Results</label>
+      <select id="maxResults">
+        <option value="10">10 leads</option>
+        <option value="20" selected>20 leads</option>
+        <option value="40">40 leads</option>
+        <option value="60">60 leads</option>
+      </select>
+    </div>
+    <button class="btn-extract" id="extractBtn" onclick="startExtraction()">
+      <span id="btnIcon">⚡</span>
+      <span id="btnText">Extract Leads</span>
+    </button>
+  </div>
+ 
+  <div class="error-box" id="errorBox"></div>
+ 
+  <div id="progress-area">
+    <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+    <div class="progress-log" id="progressLog"></div>
+  </div>
+ 
+  <div id="results-area">
+    <div class="results-header">
+      <div style="display:flex;align-items:center;gap:0.75rem">
+        <h3>Extracted Leads</h3>
+        <span class="count-badge" id="countBadge">0 found</span>
+      </div>
+      <a class="btn-download" id="downloadBtn" href="#" onclick="downloadExcel()">
+        ↓ Download Excel
+      </a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Business Name</th>
+            <th>Category</th>
+            <th>Rating</th>
+            <th>Reviews</th>
+            <th>Phone</th>
+            <th>Address</th>
+            <th>Website</th>
+          </tr>
+        </thead>
+        <tbody id="leadsTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+ 
+<div class="stats-row">
+  <div class="stat"><div class="stat-num">8</div><div class="stat-lbl">Data Fields</div></div>
+  <div class="stat"><div class="stat-num">60+</div><div class="stat-lbl">Leads Per Search</div></div>
+  <div class="stat"><div class="stat-num">XLSX</div><div class="stat-lbl">Export Format</div></div>
+  <div class="stat"><div class="stat-num">100%</div><div class="stat-lbl">Free</div></div>
+</div>
+ 
+<footer>MapLeads — For business research only. Respect Google's Terms of Service.</footer>
+ 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+const API = 'http://localhost:5000';
+let extractedData = [];
+ 
+function log(msg, type='info') {
+  const box = document.getElementById('progressLog');
+  const line = document.createElement('div');
+  line.className = `log-line ${type}`;
+  line.textContent = `> ${msg}`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+ 
+function setProgress(pct) {
+  document.getElementById('progressBar').style.width = pct + '%';
+}
+ 
+function showError(msg) {
+  const b = document.getElementById('errorBox');
+  b.textContent = '⚠ ' + msg;
+  b.style.display = 'block';
+}
+ 
+async function startExtraction() {
+  const keyword = document.getElementById('keyword').value.trim();
+  const location = document.getElementById('location').value.trim();
+  const maxResults = parseInt(document.getElementById('maxResults').value);
+ 
+  if (!keyword) { showError('Please enter a keyword like "restaurants" or "dentist"'); return; }
+  if (!location) { showError('Please enter a city or location'); return; }
+ 
+  document.getElementById('errorBox').style.display = 'none';
+  document.getElementById('results-area').style.display = 'none';
+  document.getElementById('progressLog').innerHTML = '';
+  document.getElementById('extractBtn').disabled = true;
+  document.getElementById('btnIcon').textContent = '⏳';
+  document.getElementById('btnText').textContent = 'Extracting...';
+  document.getElementById('progress-area').style.display = 'block';
+  setProgress(5);
+ 
+  log(`Starting search: "${keyword}" in "${location}"`, 'info');
+  log(`Target: ${maxResults} leads`, 'info');
+ 
+  try {
+    setProgress(15);
+    log('Opening Google Maps...', 'info');
+ 
+    const res = await fetch(`${API}/scrape`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({keyword, location, max_results: maxResults})
+    });
+ 
+    setProgress(90);
+ 
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Server error');
+    }
+ 
+    const data = await res.json();
+    extractedData = data.results;
+ 
+    setProgress(100);
+    log(`✓ Extracted ${extractedData.length} leads successfully!`, 'ok');
+    renderTable(extractedData);
+ 
+  } catch (err) {
+    if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+      // Demo mode
+      log('Backend not connected — showing demo data', 'info');
+      setProgress(100);
+      extractedData = getDemoData(keyword, location);
+      log(`✓ Demo: ${extractedData.length} sample leads loaded`, 'ok');
+      renderTable(extractedData);
+    } else {
+      showError(err.message);
+      document.getElementById('progress-area').style.display = 'none';
+    }
+  } finally {
+    document.getElementById('extractBtn').disabled = false;
+    document.getElementById('btnIcon').textContent = '⚡';
+    document.getElementById('btnText').textContent = 'Extract Leads';
+  }
+}
+ 
+function renderTable(data) {
+  const tbody = document.getElementById('leadsTable');
+  tbody.innerHTML = data.map((r, i) => `
+    <tr>
+      <td style="color:var(--muted);font-family:var(--mono);font-size:0.75rem">${i+1}</td>
+      <td style="font-weight:600;max-width:180px">${r.name}</td>
+      <td><span class="tag">${r.category || '—'}</span></td>
+      <td><span class="rating-star">★</span> ${r.rating || '—'}</td>
+      <td style="color:var(--muted)">${r.reviews ? r.reviews.toLocaleString() : '—'}</td>
+      <td>${r.phone ? `<a class="phone-link" href="tel:${r.phone}">${r.phone}</a>` : '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="max-width:200px;color:var(--muted);font-size:0.78rem">${r.address || '—'}</td>
+      <td>${r.website ? `<a href="${r.website}" target="_blank" style="color:#6b9eff;font-size:0.78rem;text-decoration:none" title="${r.website}">🔗 Visit</a>` : '<span style="color:var(--muted)">—</span>'}</td>
+    </tr>
+  `).join('');
+ 
+  document.getElementById('countBadge').textContent = `${data.length} found`;
+  document.getElementById('results-area').style.display = 'block';
+}
+ 
+function downloadExcel() {
+  if (!extractedData.length) return;
+ 
+  const rows = extractedData.map((r, i) => ({
+    '#': i + 1,
+    'Business Name': r.name,
+    'Category': r.category || '',
+    'Rating': r.rating || '',
+    'Reviews': r.reviews || '',
+    'Phone': r.phone || '',
+    'Address': r.address || '',
+    'Website': r.website || '',
+    'Google Maps URL': r.maps_url || ''
+  }));
+ 
+  const ws = XLSX.utils.json_to_sheet(rows);
+ 
+  // Column widths
+  ws['!cols'] = [
+    {wch:4},{wch:30},{wch:20},{wch:8},{wch:10},
+    {wch:15},{wch:35},{wch:28},{wch:40}
+  ];
+ 
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+ 
+  const keyword = document.getElementById('keyword').value || 'leads';
+  const location = document.getElementById('location').value || 'all';
+  const fname = `${keyword}_${location}_${new Date().toISOString().slice(0,10)}.xlsx`
+    .replace(/\s+/g, '_').toLowerCase();
+ 
+  XLSX.writeFile(wb, fname);
+}
+ 
+function getDemoData(keyword, location) {
+  const names = ['Star '+keyword,'Premium '+keyword,'Best '+keyword,'Top '+keyword,
+    'Royal '+keyword,'Elite '+keyword,'City '+keyword,'New '+keyword,
+    'Modern '+keyword,'Classic '+keyword];
+  const cats = ['Restaurant','Cafe','Store','Services','Clinic','Agency','Studio','Shop'];
+  const phones = ['+91 98765 43210','+91 87654 32109','+91 76543 21098','+91 99887 76655',''];
+  return names.map((n,i) => ({
+    name: n + ' ' + location,
+    category: cats[i % cats.length],
+    rating: (3.5 + Math.random()*1.5).toFixed(1),
+    reviews: Math.floor(50 + Math.random()*900),
+    phone: phones[i % phones.length],
+    address: `${10+i*3}, Main Road, ${location}`,
+    website: i % 3 === 0 ? `https://www.example${i}.com` : '',
+    maps_url: `https://maps.google.com/?q=${encodeURIComponent(n+' '+location)}`
+  }));
+}
+ 
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') startExtraction();
+});
+</script>
+ 
+</body>
+</html>
